@@ -6,7 +6,7 @@ import scipy
 import numpy as np
 model = SentenceTransformer('bert-base-nli-stsb-mean-tokens')
 #%%
-with open('dev.jsonl', 'r') as f:
+with open('../dev.jsonl', 'r') as f:
     data = [item for item in json_lines.reader(f)]
 num = len(data)
 mapping = {0:'A',

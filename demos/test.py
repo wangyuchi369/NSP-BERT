@@ -3,7 +3,7 @@
 # __author__ = "Sponge_sy"
 # Date: 2021/9/11
 
-
+import time
 import numpy
 from tqdm import tqdm
 from bert4keras.tokenizers import Tokenizer
@@ -11,7 +11,9 @@ from bert4keras.models import build_transformer_model
 from bert4keras.snippets import sequence_padding, DataGenerator
 from utils import *
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+import json
+import json_lines
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 class data_generator(DataGenerator):
     """Data Generator"""
@@ -40,14 +42,12 @@ class data_generator(DataGenerator):
 
 def predict(data_generator_list, data):
     print("\n*******************Start to Zero-Shot predict*******************", flush=True)
-    patterns_logits = [[] for _ in patterns]
+    patterns_logits = [[] for _ in answers]
     samples_logits = [[] for _ in data]
     for i in range(len(data_generator_list)):
-        print("\nPattern{}".format(i), flush=True)
         data_generator = data_generator_list[i]
         counter = 0
-        for (x, _) in tqdm(data_generator):
-            print(x)
+        for (x, _) in data_generator:
             outputs = model.predict(x[:2])
             for out in outputs:
                 logit_pos = out[0].T
@@ -74,46 +74,49 @@ if __name__ == "__main__":
     #                'uer-mixed-bert-base', 'uer-mixed-bert-large']
     model_name = 'uer-mixed-bert-base'
 
-    # Choose a dataset----------------------------------------------------------------------
-    # dataset_names = ['eprstmt', 'tnews', 'csldcp', 'iflytek']
-    # dataset_name = 'eprstmt'
-
     # Load model and dataset class
     bert_model = Model(model_name=model_name)
-
-    # Create a template --------------------------------------------------------------------
-    label_names = ['entertainment', 'sports', 'music', 'games', 'economics', 'education']
-    patterns = ["This is {} news".format(label) for label in label_names]
-
-    # Prefix or Suffix-------------------------------------------------------------------
-    is_pre = True
-
-    # Load the demo set--------------------------------------------------------------------
-
-    demo_data_en = ['FIFA unveils biennial World Cup plan, UEFA threatens boycott',
-                    'COVID vaccines hold up against severe Delta: US data',
-                    'Justin Drew Bieber was born on March 1, 1994 at St. ',
-                    'Horizon launches latest chip to take on global rivals',
-                    'Twitch video gamers rise up to stop ‘hate raids’']
-
-    demo_data = demo_data_en
-    demo_generator_list = []
-    for p in patterns:
-        demo_generator_list.append(data_generator(pattern=p, is_pre=is_pre, data=demo_data, batch_size=batch_size))
-
-    # Build BERT model---------------------------------------------------------------------
     tokenizer = Tokenizer('.' + bert_model.dict_path, do_lower_case=True)
     # Load BERET model with NSP head
     model = build_transformer_model(
         config_path='.' + bert_model.config_path, checkpoint_path='.' + bert_model.checkpoint_path, with_nsp=True,
     )
 
-    # Zero-Shot predict and evaluate-------------------------------------------------------
-    preds, samples_logits = predict(demo_generator_list, demo_data)
-    for i, (p, d) in enumerate(zip(preds, demo_data)):
-        pred_label = label_names[p]
+    mapping = {0:'A',
+               1:'B',
+               2:'C',
+               3:'D',
+               4:'E'}
+
+
+
+    with open('../dev.jsonl', 'r') as f:
+        data = [item for item in json_lines.reader(f)]
+    num = 500
+    start = time.time()
+    count = 0
+    for i in tqdm(range(num)):
+        ground_truth = data[i]['answerKey']
+        question_answer = data[i]['question']
+        answers = [item['text'] for item in question_answer['choices']]
+        # answer_prompt = ['the answer is {}'.format(i) for i in answers]
+        is_pre = False
+        question = [data[i]['question']['stem']]
+        generate_list = []
+        for each_answer in answers:
+            generate_list.append(data_generator(pattern=each_answer, is_pre=is_pre, data=question, batch_size=batch_size))
+
+        preds, samples_logits = predict(generate_list, question)
+        pred_label = answers[preds[0]]
+        print(preds[0])
+        if mapping[preds[0]] == ground_truth:
+            count+=1
+            print('true')
         print("Sample {}:".format(i))
-        print("Original Text: {}".format(d))
+        print("Original Text: {}".format(question))
         print("Predict label: {}".format(pred_label))
-        print("Logits: {}".format(samples_logits[i]))
-        print()
+        print("Logits: {}".format(samples_logits[0]))
+        print(ground_truth)
+    print('正确率为',count/num)
+    end = time.time()
+    print('花费时长为',end-start,'s')

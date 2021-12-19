@@ -1,3 +1,8 @@
+**a few more code are added in my-model/**
+
+nsp-bert are based on this repo utilising nsp to solve commonsense qa problem
+In contrast, sentence-bert are base on sentence transformers to encode two sentences and calculate their distance.
+
 **[English](https://github.com/sunyilgdx/NSP-BERT)** | **[中文](https://github.com/sunyilgdx/NSP-BERT/blob/main/README_zh.md)**
 
 ## Overview
